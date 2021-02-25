@@ -2,6 +2,7 @@ package main
 
 import (
 	"gangway/src/proxy"
+	"gangway/src/settings"
 	"io"
 	"net"
 	"os"
@@ -10,9 +11,10 @@ import (
 )
 
 func main() {
+	settings.ContextType = settings.ContextTypeController
 	log.Info().Msg("Starting Gangway Conterller")
 	go listenLog()
-	proxy.Serve(proxy.TypeController, "0.0.0.0", 7925)
+	proxy.Serve(proxy.TypeController, "0.0.0.0", 9527)
 }
 
 func listenLog() {

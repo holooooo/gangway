@@ -31,7 +31,7 @@ func init() {
 
 func getConfig() {
 	IP = flag.String("ip", "0.0.0.0", "(optional) Local ip to be listened")
-	Port = flag.Int("port", 1080, "(optional) Local port to be listened")
+	Port = flag.Int("port", 9527, "(optional) Local port to be listened")
 
 	PoolSize = flag.Int("PoolSize", 10, "(optional) Maximum number of connections at the same time")
 	PoolMaxIdle = flag.Int("PoolMaxIdle", 2, "(optional) Maximum number of idle connections at the same time")

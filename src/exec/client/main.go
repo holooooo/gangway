@@ -11,12 +11,13 @@ import (
 )
 
 func main() {
+	settings.ContextType = settings.ContextTypeClient
 	log.Info().Msg("Starting Gangway Client")
 	svcLen, err := service.Collect()
 	if err != nil {
 		panic(err)
 	}
-	kube.StreamInit()
+	kube.Init()
 	pool.InitPool(*settings.PoolSize+svcLen, *settings.PoolMaxIdle)
 	go service.Register()
 	proxy.Serve(proxy.TypeClient, *settings.IP, *settings.Port)

@@ -19,14 +19,6 @@ var (
 	gangwayPod *corev1.Pod
 )
 
-func StreamInit() {
-	var err error
-	gangwayPod, err = getGangwayPod()
-	if err != nil {
-		panic(err)
-	}
-}
-
 func NewPipe() (*Pipe, error) {
 	// get long live stream to gangway agent
 	req := kc.Clientset.RESTClient().
@@ -50,6 +42,7 @@ func NewPipe() (*Pipe, error) {
 
 	inReader, inWriter := io.Pipe()
 	outReader, outWriter := io.Pipe()
+	pipe := &Pipe{out: outReader, in: inWriter, stop: make(chan struct{})}
 	go func() {
 		defer inReader.Close()
 		defer outWriter.Close()
@@ -60,15 +53,16 @@ func NewPipe() (*Pipe, error) {
 			Tty:    true,
 		})
 		if err != nil {
-			log.Printf("Connection Broken: %v\n", err)
+			log.Err(err).Msg("Connection Broken")
 		}
+		<-pipe.stop
 	}()
 
-	return &Pipe{out: outReader, in: inWriter}, nil
+	return pipe, nil
 }
 
 func getGangwayPod() (*corev1.Pod, error) {
-	log.Info().Msg("Looking for Gangway Controller pod")
+	log.Info().Msgf("Looking for Gangway Controller pod in %v:%v", *settings.Namespace, *settings.Name)
 
 	deploy, err := kc.Clientset.AppsV1().
 		Deployments(*settings.Namespace).
@@ -90,8 +84,9 @@ func getGangwayPod() (*corev1.Pod, error) {
 }
 
 type Pipe struct {
-	out *io.PipeReader
-	in  *io.PipeWriter
+	out  *io.PipeReader
+	in   *io.PipeWriter
+	stop chan struct{}
 }
 
 func (p Pipe) Read(b []byte) (n int, err error) {
@@ -101,10 +96,7 @@ func (p Pipe) Write(b []byte) (n int, err error) {
 	return p.in.Write(b)
 }
 func (p Pipe) Close() error {
-	err := p.out.Close()
-	if err != nil {
-		return err
-	}
+	p.stop <- struct{}{}
 	return p.in.Close()
 }
 

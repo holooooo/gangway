@@ -53,7 +53,9 @@ func genHeader(s *Session, t pType, state state) []byte {
 	h := make([]byte, 14)
 	h[0] = currentVersion
 	h[1] = mergeTypeAndState(t, state)
-	h = append(h[:2], addrToBytes(s.src.addr)...)
+	if s.src != nil {
+		h = append(h[:2], addrToBytes(s.src.addr)...)
+	}
 	h = append(h[:8], addrToBytes(s.dst.addr)...)
 	return h
 }

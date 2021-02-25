@@ -221,6 +221,7 @@ func (s *Session) listenPorto() {
 			}
 			h := genHeader(s, TypeHandShakeReply, StateSuccess)
 			err = write(h, s.src.out)
+			go s.listenTCP()
 		case TypeAlive:
 			h := genHeader(s, TypeAliveReply, StateSuccess)
 			err = write(h, s.src.out)
