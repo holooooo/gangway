@@ -34,6 +34,7 @@ const (
 	TypeHandShakeReply   pType = 3
 	TypeShutdown         pType = 4
 	TypeAlive            pType = 5
+	TypeAliveReply       pType = 6
 )
 
 type Session struct {
@@ -83,15 +84,20 @@ func NewClientSession(c net.Conn, p pool.Pipe) (*Session, error) {
 	return s, nil
 }
 
-// todo server session need to listen handshake, and manage proxy conn
+// server session need to listen handshake, and manage proxy conn
 func NewServerSession(c net.Conn) (*Session, error) {
+	dst, err := net.ResolveTCPAddr("tcp4", c.LocalAddr().String())
+	if err != nil {
+		return nil, err
+	}
 	s := &Session{
 		stop:        make(chan struct{}),
 		handShakeCh: make(chan state),
 		shutdownCh:  make(chan state),
 		dst: &stream{
-			in:  c,
-			out: c,
+			addr: dst,
+			in:   c,
+			out:  c,
 		},
 	}
 
@@ -99,7 +105,7 @@ func NewServerSession(c net.Conn) (*Session, error) {
 }
 
 // todo need a service struct
-func NewServiceSession(p *pool.Pipe) (*Session, error) {
+func NewServiceSession(p *pool.Pipe, svc service.Service) (*Session, error) {
 	return nil, nil
 }
 
@@ -157,7 +163,7 @@ func (s *Session) listenPorto() {
 			return
 		default:
 		}
-		ptype, state, re := parseHeader(s.dst.in, buf)
+		ptype, sta, re := parseHeader(s.dst.in, buf)
 		if e, ok := (re).(UnsportVersionErr); ok {
 			log.Err(e)
 			continue
@@ -168,7 +174,7 @@ func (s *Session) listenPorto() {
 
 		switch ptype {
 		case TypeHandShakeReply:
-			s.handShakeCh <- state
+			s.handShakeCh <- sta
 		case TypeShutdown:
 			log.Info().Msgf("Session %v to %v shutdown by remote", s.dst, s.src)
 			close(s.stop)
@@ -185,19 +191,43 @@ func (s *Session) listenPorto() {
 				break
 			}
 
-			plen := binary.BigEndian.Uint16(buf[:2])
-			_, pe := io.CopyN(s.src.out, s.dst.in, int64(plen))
+			pLen := int64(binary.BigEndian.Uint16(buf[:2]))
+			_, pe := io.CopyN(s.src.out, s.dst.in, pLen)
 			if pe != nil {
 				err = pe
 			}
+		case TypeHandShake:
+			_, re = io.ReadFull(s.dst.in, buf[:12])
+			if re != nil {
+				err = re
+				break
+			}
+
+			targetAddr := bytesToAddr(buf[6:])
+			conn, ce := net.Dial("tcp4", targetAddr.String())
+			if ce != nil {
+				err = ce
+				// TODO
+				sta := StateConnectionRefused
+				h := genHeader(s, TypeHandShakeReply, sta)
+				write(h, s.src.out)
+				break
+			}
+			defer conn.Close()
+			s.src = &stream{
+				in:   conn,
+				out:  conn,
+				addr: targetAddr,
+			}
+			h := genHeader(s, TypeHandShakeReply, StateSuccess)
+			err = write(h, s.src.out)
 		case TypeAlive:
-			//TODO
+			h := genHeader(s, TypeAliveReply, StateSuccess)
+			err = write(h, s.src.out)
 		case TypeServiceHandShake:
 			//TODO
-		case TypeHandShake:
-			//TODO
 		default:
-			log.Info().Msgf("Session %v to %v recived error type %v", s.dst, s.src, state)
+			log.Info().Msgf("Session %v to %v recived error type %v", s.dst, s.src, sta)
 		}
 		if err != nil {
 			break

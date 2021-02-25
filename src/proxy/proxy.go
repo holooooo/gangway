@@ -14,8 +14,11 @@ const (
 	TypeController = "controller"
 )
 
+var p int
+
 // Serve will Listen local tcp conn and forward content by pipe
 func Serve(t, ip string, port int) {
+	p = port
 	addr, err := net.ResolveTCPAddr("tcp4", fmt.Sprintf("%v:%v", ip, port))
 	if err != nil {
 		panic(err)
@@ -24,6 +27,7 @@ func Serve(t, ip string, port int) {
 	if err != nil {
 		panic(err)
 	}
+
 	for {
 		conn, err := server.Accept()
 		if err != nil {
@@ -59,6 +63,7 @@ func proxyClient(c net.Conn) error {
 	if err != nil {
 		return err
 	}
+	log.Info().Msgf("Gangway Client start.Listening port %v", p)
 	s.Listen()
 	return nil
 }
@@ -70,6 +75,7 @@ func proxyController(c net.Conn) error {
 	if err != nil {
 		return err
 	}
+	log.Info().Msgf("Gangway Controller start.Listening port %v", p)
 	s.Serve()
 	return nil
 }

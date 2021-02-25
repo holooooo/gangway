@@ -12,6 +12,14 @@ func addrToBytes(addr *net.TCPAddr) []byte {
 	binary.BigEndian.PutUint16(b[:4], uint16(addr.Port))
 	return b
 }
+func bytesToAddr(b []byte) *net.TCPAddr {
+	binary.BigEndian.Uint16(b)
+	addr := &net.TCPAddr{
+		IP:   b[:4],
+		Port: int(binary.BigEndian.Uint16(b[:4])),
+	}
+	return addr
+}
 
 func mergeTypeAndState(t pType, s state) byte {
 	return byte(t<<4) | byte(s)
@@ -42,11 +50,11 @@ func packet(data, buffer []byte) int {
 }
 
 func genHeader(s *Session, t pType, state state) []byte {
-	h := make([]byte, 16)
+	h := make([]byte, 14)
 	h[0] = currentVersion
 	h[1] = mergeTypeAndState(t, state)
 	h = append(h[:2], addrToBytes(s.src.addr)...)
-	h = append(h[:9], addrToBytes(s.dst.addr)...)
+	h = append(h[:8], addrToBytes(s.dst.addr)...)
 	return h
 }
 

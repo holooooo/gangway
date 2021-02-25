@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"gangway/src/settings"
 	"io"
-	"log"
 	"os"
 
+	"github.com/rs/zerolog/log"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -19,7 +19,7 @@ var (
 	gangwayPod *corev1.Pod
 )
 
-func init() {
+func StreamInit() {
 	var err error
 	gangwayPod, err = getGangwayPod()
 	if err != nil {
@@ -68,6 +68,8 @@ func NewPipe() (*Pipe, error) {
 }
 
 func getGangwayPod() (*corev1.Pod, error) {
+	log.Info().Msg("Looking for Gangway Controller pod")
+
 	deploy, err := kc.Clientset.AppsV1().
 		Deployments(*settings.Namespace).
 		Get(context.TODO(), *settings.Name, metav1.GetOptions{})
