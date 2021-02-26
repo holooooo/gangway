@@ -1,7 +1,6 @@
 package session
 
 import (
-	"encoding/binary"
 	"gangway/src/kube/service"
 	"gangway/src/proxy/pool"
 	"io"
@@ -179,56 +178,15 @@ func (s *Session) listenPorto() {
 			log.Info().Msgf("Session %v to %v shutdown by remote", s.dst, s.src)
 			close(s.stop)
 		case TypePacket:
-			// if recive packet but never handshake, break
-			if s.src == nil {
-				err = NotHandShakeYetErr
-				break
-			}
-
-			_, re = io.ReadFull(s.dst.in, buf[:2])
-			if re != nil {
-				err = re
-				break
-			}
-
-			pLen := int64(binary.BigEndian.Uint16(buf[:2]))
-			_, pe := io.CopyN(s.src.out, s.dst.in, pLen)
-			if pe != nil {
-				err = pe
-			}
+			err = handlePacket(s, buf)
 		case TypeHandShake:
-			_, re = io.ReadFull(s.dst.in, buf[:12])
-			if re != nil {
-				err = re
-				break
-			}
-
-			targetAddr := bytesToAddr(buf[6:])
-			conn, ce := net.Dial("tcp4", targetAddr.String())
-			if ce != nil {
-				err = ce
-				// TODO
-				sta := StateConnectionRefused
-				h := genHeader(s, TypeHandShakeReply, sta)
-				write(h, s.src.out)
-				break
-			}
-			defer conn.Close()
-			s.src = &stream{
-				in:   conn,
-				out:  conn,
-				addr: targetAddr,
-			}
-			h := genHeader(s, TypeHandShakeReply, StateSuccess)
-			err = write(h, s.src.out)
-			go s.listenTCP()
+			err = handleHandShake(s, buf)
 		case TypeAlive:
-			h := genHeader(s, TypeAliveReply, StateSuccess)
-			err = write(h, s.src.out)
+			err = handleAlive(s, buf)
 		case TypeServiceHandShake:
-			//TODO
+			err = handleServiceHandShake(s, buf)
 		default:
-			log.Info().Msgf("Session %v to %v recived error type %v", s.dst, s.src, sta)
+			log.Info().Msgf("Session %v to %v received error type %v", s.dst, s.src, sta)
 		}
 		if err != nil {
 			break

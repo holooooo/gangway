@@ -36,11 +36,11 @@ func newClient() (*kubeClient, error) {
 	if settings.ContextType == settings.ContextTypeClient {
 		// use the current context in kubeconfig
 		config, err = clientcmd.BuildConfigFromFlags("", *settings.Kubeconfig)
-		if err != nil {
-			return nil, err
-		}
 	} else if settings.ContextType == settings.ContextTypeController {
 		config, err = rest.InClusterConfig()
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
