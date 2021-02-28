@@ -98,13 +98,12 @@ CheckIdle:
 			break CheckIdle
 		}
 	}
-RealeaseChecked:
 	for {
 		select {
 		case pipe := <-checkedPipes:
 			Release(pipe)
 		default:
-			break RealeaseChecked
+			return
 		}
 	}
 }

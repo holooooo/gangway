@@ -1,38 +1,33 @@
 package kube
 
 import (
-	"context"
-	"fmt"
 	"gangway/src/settings"
 	"io"
 	"os"
 
 	"github.com/rs/zerolog/log"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/kubectl/pkg/scheme"
 )
 
-var (
-	gangwayPod *corev1.Pod
-)
+var ()
 
 func NewPipe() (*Pipe, error) {
 	// get long live stream to gangway agent
-	req := kc.Clientset.RESTClient().
+	req := kc.Clientset.CoreV1().RESTClient().
 		Post().
 		Namespace(*settings.Namespace).
 		Resource("pods").
 		Name(gangwayPod.Name).
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
-			Command: []string{"repeater"},
-			Stdin:   true,
-			Stdout:  true,
-			Stderr:  true,
-			TTY:     true,
+			Container: gangwayPod.Spec.Containers[0].Name,
+			Command:   []string{"repeater"},
+			Stdin:     true,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       true,
 		}, scheme.ParameterCodec)
 
 	exec, err := remotecommand.NewSPDYExecutor(kc.Config, "POST", req.URL())
@@ -59,28 +54,6 @@ func NewPipe() (*Pipe, error) {
 	}()
 
 	return pipe, nil
-}
-
-func getGangwayPod() (*corev1.Pod, error) {
-	log.Info().Msgf("Looking for Gangway Controller pod in %v:%v", *settings.Namespace, *settings.Name)
-
-	deploy, err := kc.Clientset.AppsV1().
-		Deployments(*settings.Namespace).
-		Get(context.TODO(), *settings.Name, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	podLabels := labels.FormatLabels(deploy.Spec.Template.Labels)
-	pods, err := kc.Clientset.CoreV1().
-		Pods(*settings.Namespace).
-		List(context.TODO(), metav1.ListOptions{LabelSelector: podLabels})
-	if err != nil {
-		return nil, err
-	}
-	if len(pods.Items) == 0 {
-		return nil, fmt.Errorf("Gangway agent not deploy in target cluster")
-	}
-	return &pods.Items[0], nil
 }
 
 type Pipe struct {

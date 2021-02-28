@@ -27,6 +27,7 @@ func Serve(t, ip string, port int) {
 	if err != nil {
 		panic(err)
 	}
+	defer server.Close()
 
 	for {
 		conn, err := server.Accept()
@@ -34,6 +35,7 @@ func Serve(t, ip string, port int) {
 			log.Err(err).Msgf("Get Conn from %v:%v failed", ip, port)
 		}
 		go func(c net.Conn) {
+			defer c.Close()
 			switch t {
 			case TypeClient:
 				err = proxyClient(c)
@@ -48,7 +50,6 @@ func Serve(t, ip string, port int) {
 }
 
 func proxyClient(c net.Conn) error {
-	defer c.Close()
 	p, err := pool.GetPipe()
 	if err != nil {
 		return err
@@ -69,8 +70,6 @@ func proxyClient(c net.Conn) error {
 }
 
 func proxyController(c net.Conn) error {
-	defer c.Close()
-
 	s, err := session.NewServerSession(c)
 	if err != nil {
 		return err

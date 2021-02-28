@@ -14,11 +14,11 @@ func main() {
 	settings.ContextType = settings.ContextTypeController
 	log.Info().Msg("Starting Gangway Conterller")
 	go listenLog()
-	proxy.Serve(proxy.TypeController, "0.0.0.0", 9527)
+	proxy.Serve(proxy.TypeController, "127.0.0.1", 9527)
 }
 
 func listenLog() {
-	server, err := net.Listen("tcp4", "0.0.0.0:7529")
+	server, err := net.Listen("tcp4", "127.0.0.1:7529")
 	if err != nil {
 		panic(err)
 	}
