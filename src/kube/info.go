@@ -37,11 +37,20 @@ func getClusterInfo() {
 
 func listenGangwayPod() {
 	log.Info().Msgf("looking for Gangway Controller pod in %v:%v", *settings.Namespace, *settings.Name)
-	pod, err := kc.Clientset.CoreV1().Pods(*settings.Namespace).Get(context.TODO(), *settings.Name, metav1.GetOptions{})
+	pods, err := kc.Clientset.CoreV1().Pods(*settings.Namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Err(err).Msg("init gangway controller pod name failed")
+		log.Warn().Err(err).Msg("init gangway controller pod name failed")
 	}
-	gangwayPod = pod
+	for _, pod := range pods.Items {
+		if strings.HasPrefix(pod.Name, *settings.Name) && pod.Status.Phase == corev1.PodRunning {
+			gangwayPod = &pod
+			break
+		}
+	}
+	if gangwayPod == nil {
+		log.Warn().Msg("no gangway pod has been find")
+	}
+	log.Info().Msgf("find gangway pod %v", gangwayPod.Name)
 
 	podInformer := informer.Core().V1().Pods().Informer()
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
