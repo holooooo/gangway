@@ -37,7 +37,7 @@ func Serve(t, ip string, port int) {
 		conn, err := server.Accept()
 		log.Debug().Msgf("recived a new connection from %v to %v", conn.LocalAddr(), conn.RemoteAddr())
 		if err != nil {
-			log.Err(err).Msgf("Get Conn from %v:%v failed", ip, port)
+			log.Warn().Err(err).Msgf("Get Conn from %v:%v failed", ip, port)
 		}
 		go func(c net.Conn) {
 			defer c.Close()
@@ -48,7 +48,7 @@ func Serve(t, ip string, port int) {
 				err = proxyController(c)
 			}
 			if err != nil {
-				log.Err(err).Msgf("Proxy to %v failed", conn.RemoteAddr())
+				log.Warn().Err(err).Msgf("Proxy to %v failed", conn.RemoteAddr())
 			}
 		}(conn)
 	}

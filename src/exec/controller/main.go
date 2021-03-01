@@ -25,7 +25,7 @@ func listenLog() {
 	for {
 		conn, err := server.Accept()
 		if err != nil {
-			log.Err(err)
+			log.Warn().Err(err)
 			continue
 		}
 		go func() {

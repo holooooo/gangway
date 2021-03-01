@@ -55,7 +55,7 @@ func NewPipe() (*Pipe, error) {
 			Tty:    true,
 		})
 		if err != nil {
-			log.Err(err).Msg("pipe creat failed")
+			log.Warn().Err(err).Msg("pipe creat failed")
 			pipe.Close()
 		}
 		<-pipe.stop

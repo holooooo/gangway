@@ -18,7 +18,7 @@ func main() {
 
 	dataConn, err := net.Dial("tcp4", "localhost:9527")
 	if err != nil {
-		log.Err(err).Msg("Connect failed, shutdown ...")
+		log.Warn().Err(err).Msg("Connect failed, shutdown ...")
 	}
 	defer dataConn.Close()
 

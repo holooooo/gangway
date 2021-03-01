@@ -161,7 +161,7 @@ func (s *Session) listenPorto() {
 		}
 		ptype, sta, re := parseHeader(s.dst.in, buf)
 		if e, ok := (re).(UnsportVersionErr); ok {
-			log.Err(e)
+			log.Warn().Err(e)
 			continue
 		} else if re != nil {
 			err = re
@@ -223,7 +223,7 @@ func (s *Session) listenTCP() {
 
 	if err != nil {
 		if err != io.EOF {
-			log.Err(err).Msgf("Session %v to %v", s.src, s.dst)
+			log.Warn().Err(err).Msgf("Session %v to %v", s.src, s.dst)
 			s.throwError(err)
 		}
 		s.shutdown()
