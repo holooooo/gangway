@@ -15,7 +15,7 @@ func NewHandShakeTimeOutErr(timeout time.Duration) error {
 }
 
 func (err HandShakeTimeOutErr) Error() string {
-	return fmt.Sprintf("Gangway handshake timeout, now is %v", err.timeout)
+	return fmt.Sprintf("handshake timeout, current value is %v", err.timeout)
 }
 
 type UnsportVersionErr struct {

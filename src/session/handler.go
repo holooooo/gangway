@@ -37,7 +37,7 @@ func handleHandShake(s *Session, buf []byte) error {
 		// TODO
 		sta := StateConnectionRefused
 		h := genHeader(s, TypeHandShakeReply, sta)
-		write(h, s.src.out)
+		_ = write(h, s.dst.out)
 		return err
 	}
 	defer conn.Close()
@@ -47,9 +47,7 @@ func handleHandShake(s *Session, buf []byte) error {
 		addr: targetAddr,
 	}
 	h := genHeader(s, TypeHandShakeReply, StateSuccess)
-	err = write(h, s.src.out)
-	go s.listenTCP()
-	return nil
+	return write(h, s.src.out)
 }
 
 func handleAlive(s *Session, buf []byte) error {

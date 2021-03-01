@@ -38,9 +38,7 @@ func InitPool(s, mi int) {
 	maxIdle = mi
 	idlePipes = make(chan Pipe, size)
 	checkedPipes = make(chan Pipe, maxIdle)
-	go func() {
-		beat()
-	}()
+	beat()
 }
 
 func GetPipe() (Pipe, error) {
@@ -71,12 +69,12 @@ func Release(p Pipe) {
 }
 
 func beat() {
-	for {
-		select {
-		case <-time.After(10 * time.Second):
+	go func() {
+		for {
+			time.Sleep(10 * time.Second)
 			check()
 		}
-	}
+	}()
 }
 
 func check() {

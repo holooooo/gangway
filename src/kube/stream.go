@@ -1,6 +1,7 @@
 package kube
 
 import (
+	"errors"
 	"gangway/src/settings"
 	"io"
 	"os"
@@ -11,9 +12,15 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 )
 
-var ()
+var (
+	noGangwayPod = errors.New("no gangway pod find")
+)
 
 func NewPipe() (*Pipe, error) {
+	if gangwayPod == nil {
+		return nil, noGangwayPod
+	}
+
 	// get long live stream to gangway agent
 	req := kc.Clientset.CoreV1().RESTClient().
 		Post().
@@ -48,7 +55,8 @@ func NewPipe() (*Pipe, error) {
 			Tty:    true,
 		})
 		if err != nil {
-			log.Err(err).Msg("Connection Broken")
+			log.Err(err).Msg("pipe creat failed")
+			pipe.Close()
 		}
 		<-pipe.stop
 	}()

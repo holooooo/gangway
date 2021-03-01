@@ -30,7 +30,7 @@ func listenLog() {
 		}
 		go func() {
 			defer conn.Close()
-			io.Copy(os.Stdout, conn)
+			_, _ = io.Copy(os.Stdout, conn)
 		}()
 	}
 }

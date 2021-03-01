@@ -17,7 +17,7 @@ type pType uint8
 const (
 	MaxPacketLen     = int(^uint16(0))
 	currentVersion   = uint8(0x1)
-	HandShakeTimeOut = 10 * time.Second
+	HandShakeTimeOut = 2 * time.Second
 
 	StateSuccess               state = 0
 	StateNetworkUnreachable    state = 1
@@ -133,10 +133,8 @@ func (s *Session) ServiceHandShake(svc service.Service) error {
 
 // it is only called in tcp conn broken
 func (s *Session) shutdown() {
-	select {
-	case <-s.stop:
+	if s.isStop() {
 		return
-	default:
 	}
 
 	h := genHeader(s, TypeShutdown, StateSuccess)
@@ -147,20 +145,19 @@ func (s *Session) shutdown() {
 
 	select {
 	case <-time.After(HandShakeTimeOut):
-		log.Error().Msgf("Shutdown timeout")
 	case <-s.shutdownCh:
 	}
-	close(s.stop)
+	if !s.isStop() {
+		close(s.stop)
+	}
 }
 
 func (s *Session) listenPorto() {
 	var err error
 	buf := make([]byte, MaxPacketLen+4)
 	for {
-		select {
-		case <-s.stop:
+		if s.isStop() {
 			return
-		default:
 		}
 		ptype, sta, re := parseHeader(s.dst.in, buf)
 		if e, ok := (re).(UnsportVersionErr); ok {
@@ -194,8 +191,10 @@ func (s *Session) listenPorto() {
 
 	}
 	if err != nil {
-		log.Err(err).Msgf("Session %v to %v", s.dst, s.src)
-		s.throwError(err)
+		if err != io.EOF {
+			log.Debug().Err(err).Msgf("Session %v to %v", s.src, s.dst)
+			s.throwError(err)
+		}
 		s.shutdown()
 	}
 }
@@ -204,10 +203,8 @@ func (s *Session) listenTCP() {
 	var err error
 	buf := make([]byte, MaxPacketLen+4)
 	for {
-		select {
-		case <-s.stop:
-			return
-		default:
+		if s.isStop() {
+			break
 		}
 		rl, re := s.src.in.Read(buf[:MaxPacketLen])
 		if rl > 0 {
@@ -225,15 +222,31 @@ func (s *Session) listenTCP() {
 	}
 
 	if err != nil {
-		log.Err(err).Msgf("Session %v to %v", s.src, s.dst)
-		s.throwError(err)
+		if err != io.EOF {
+			log.Err(err).Msgf("Session %v to %v", s.src, s.dst)
+			s.throwError(err)
+		}
 		s.shutdown()
+	}
+}
+
+func (s *Session) isStop() bool {
+	select {
+	case <-s.stop:
+		return true
+	default:
+		return false
 	}
 }
 
 func (s *Session) Listen() {
 	go s.listenTCP()
 	go s.listenPorto()
+	err := s.HandShake()
+	if err != nil {
+		log.Err(err).Msg("handshake failed")
+		s.shutdown()
+	}
 	<-s.stop
 }
 

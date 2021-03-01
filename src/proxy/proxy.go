@@ -14,11 +14,8 @@ const (
 	TypeController = "controller"
 )
 
-var p int
-
 // Serve will Listen local tcp conn and forward content by pipe
 func Serve(t, ip string, port int) {
-	p = port
 	addr, err := net.ResolveTCPAddr("tcp4", fmt.Sprintf("%v:%v", ip, port))
 	if err != nil {
 		panic(err)
@@ -29,8 +26,16 @@ func Serve(t, ip string, port int) {
 	}
 	defer server.Close()
 
+	switch t {
+	case TypeClient:
+		log.Info().Msgf("Gangway Client start.Listening port %v", port)
+	case TypeController:
+		log.Info().Msgf("Gangway Controller start.Listening port %v", port)
+	}
+
 	for {
 		conn, err := server.Accept()
+		log.Debug().Msgf("recived a new connection from %v to %v", conn.LocalAddr(), conn.RemoteAddr())
 		if err != nil {
 			log.Err(err).Msgf("Get Conn from %v:%v failed", ip, port)
 		}
@@ -43,7 +48,7 @@ func Serve(t, ip string, port int) {
 				err = proxyController(c)
 			}
 			if err != nil {
-				log.Err(err).Msgf("Proxy to %v failed", conn.RemoteAddr().String())
+				log.Err(err).Msgf("Proxy to %v failed", conn.RemoteAddr())
 			}
 		}(conn)
 	}
@@ -60,11 +65,6 @@ func proxyClient(c net.Conn) error {
 	if err != nil {
 		return err
 	}
-	err = s.HandShake()
-	if err != nil {
-		return err
-	}
-	log.Info().Msgf("Gangway Client start.Listening port %v", p)
 	s.Listen()
 	return nil
 }
@@ -74,7 +74,6 @@ func proxyController(c net.Conn) error {
 	if err != nil {
 		return err
 	}
-	log.Info().Msgf("Gangway Controller start.Listening port %v", p)
 	s.Serve()
 	return nil
 }
