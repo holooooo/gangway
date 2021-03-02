@@ -14,7 +14,9 @@ const (
 	TypeController = "controller"
 )
 
-// Serve will Listen local tcp conn and forward content by pipe
+// Serve
+// for client, it proxy local tcp conn data to remote.
+// for server, it handle data from repeater
 func Serve(t, ip string, port int) {
 	addr, err := net.ResolveTCPAddr("tcp4", fmt.Sprintf("%v:%v", ip, port))
 	if err != nil {

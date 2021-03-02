@@ -27,15 +27,15 @@ const (
 	StateUnsportProto          state = 5
 	StateGangwayUnsportVersion state = 6
 
-	TypePacket           pType = 0
-	TypeHandShake        pType = 1
-	TypeServiceHandShake pType = 2
-	TypeHandShakeReply   pType = 3
-	TypeShutdown         pType = 4
-	TypeAlive            pType = 5
-	TypeAliveReply       pType = 6
-	TypeDns              pType = 7
-	TypeDnsReply         pType = 8
+	TypeHandShake      pType = 0
+	TypeHandShakeReply pType = 1
+	TypePacket         pType = 2
+	TypeShutdown       pType = 3
+	TypeAlive          pType = 4
+	TypeAliveReply     pType = 5
+
+	TypeServiceHandShake       pType = 6
+	TypeServiceHandShakeReplay pType = 7
 )
 
 type Session struct {
@@ -82,10 +82,57 @@ func NewClientSession(c net.Conn, p pool.Pipe) (*Session, error) {
 		handShakeCh: make(chan state),
 		shutdownCh:  make(chan state),
 	}
+
+	go func() {
+		if err := s.HandShake(TypeHandShake); err != nil {
+			log.Err(err).Msg("handshake failed")
+			s.shutdown()
+		}
+	}()
 	return s, nil
 }
 
-// server session need to listen handshake, and manage proxy conn
+//TODO service session used to tell controller how to handle service data
+func NewServiceSession(svc service.Service) (*Session, error) {
+	s := &Session{}
+	go func() {
+		if err := s.HandShake(TypeServiceHandShake); err != nil {
+			log.Err(err).Msgf("service %v handshake failed", svc)
+			s.shutdown()
+		}
+	}()
+	return s, nil
+}
+
+func (s *Session) HandShake(t pType) error {
+	h := genHeader(s, t, StateSuccess)
+
+	switch t {
+	case TypeServiceHandShake:
+		//TODO
+	case TypeHandShake:
+		h = append(h[2:], addrToBytes(s.dst.addr)...)
+	default:
+		return ErrorHandShakeType
+	}
+
+	err := write(h, s.dst.out)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-time.After(HandShakeTimeOut):
+		return NewHandShakeTimeOutErr(HandShakeTimeOut)
+	case ss := <-s.handShakeCh:
+		if ss == StateSuccess {
+			return nil
+		}
+		return s.handleError(ss)
+	}
+}
+
+// server session use to proxy data from repeater to target service
 func NewServerSession(c net.Conn) (*Session, error) {
 	dst, err := net.ResolveTCPAddr("tcp4", c.LocalAddr().String())
 	if err != nil {
@@ -103,34 +150,6 @@ func NewServerSession(c net.Conn) (*Session, error) {
 	}
 
 	return s, nil
-}
-
-// todo need a service struct
-func NewServiceSession(p *pool.Pipe, svc service.Service) (*Session, error) {
-	return nil, nil
-}
-
-func (s *Session) HandShake() error {
-	h := genHeader(s, TypeHandShake, StateSuccess)
-	err := write(h, s.dst.out)
-	if err != nil {
-		return err
-	}
-
-	select {
-	case <-time.After(HandShakeTimeOut):
-		return NewHandShakeTimeOutErr(HandShakeTimeOut)
-	case ss := <-s.handShakeCh:
-		if ss == StateSuccess {
-			return nil
-		}
-		return s.handleError(ss)
-	}
-}
-
-// TODO
-func (s *Session) ServiceHandShake(svc service.Service) error {
-	return nil
 }
 
 // it is only called in tcp conn broken
@@ -234,11 +253,6 @@ func (s *Session) isStop() bool {
 func (s *Session) Listen() {
 	go s.listenTCP()
 	go s.listenPorto()
-	err := s.HandShake()
-	if err != nil {
-		log.Err(err).Msg("handshake failed")
-		s.shutdown()
-	}
 	<-s.stop
 }
 

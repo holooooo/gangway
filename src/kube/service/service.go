@@ -1,12 +1,27 @@
 package service
 
-import "github.com/rs/zerolog/log"
+import (
+	"fmt"
+
+	"github.com/rs/zerolog/log"
+)
 
 type Service struct {
-	localPort   int
-	serviceName string
-	namespace   string
-	servicePort int
+	Type string // service type.accept listener or proxy
+
+	LocalPort int
+
+	ServiceName      string
+	ServiceNamespace string
+	ServicePort      int
+}
+
+func (s *Service) String() string {
+	return fmt.Sprintf("[local:%v=>%v:%v]", s.LocalPort, s.ServiceName, s.ServicePort)
+}
+
+func (s *Service) GetLocalAddress() string {
+	return fmt.Sprintf("0.0.0.0:%v", s.LocalPort)
 }
 
 //todo

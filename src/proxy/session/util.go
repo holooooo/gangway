@@ -50,13 +50,9 @@ func packet(data, buffer []byte) int {
 }
 
 func genHeader(s *Session, t pType, state state) []byte {
-	h := make([]byte, 14)
+	h := make([]byte, 2)
 	h[0] = currentVersion
 	h[1] = mergeTypeAndState(t, state)
-	if s.src != nil {
-		h = append(h[:2], addrToBytes(s.src.addr)...)
-	}
-	h = append(h[:8], addrToBytes(s.dst.addr)...)
 	return h
 }
 

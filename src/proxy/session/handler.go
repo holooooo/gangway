@@ -50,17 +50,17 @@ func handlePacket(s *Session, sta state, buf []byte) error {
 }
 
 func handleHandShake(s *Session, sta state, buf []byte) error {
-	_, err := io.ReadFull(s.dst.in, buf[:12])
+	_, err := io.ReadFull(s.dst.in, buf[:6])
 	if err != nil {
 		return err
 	}
 
-	sourceAddr, targetAddr := bytesToAddr(buf[:6]), bytesToAddr(buf[6:])
-	log.Info().Msgf("recived handshake: from %v to %v", sourceAddr, targetAddr)
+	targetAddr := bytesToAddr(buf[:6])
+	log.Info().Msgf("recived handshake: target to %v", targetAddr)
 	conn, err := net.Dial("tcp4", targetAddr.String())
 	if err != nil {
 		// TODO correct return different error
-		log.Warn().Msgf("handshake failed: from %v to %v", sourceAddr, targetAddr)
+		log.Warn().Msgf("handshake failed: target to %v", targetAddr)
 		sta := StateConnectionRefused
 		h := genHeader(s, TypeHandShakeReply, sta)
 		_ = write(h, s.dst.out)

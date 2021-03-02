@@ -31,4 +31,7 @@ func (err UnsportVersionErr) Error() string {
 	return fmt.Sprintf("Gangway proto version %v don't support version %v", err.cur, err.target)
 }
 
-var NotHandShakeYetErr = errors.New("Should Handshake before recive packet")
+var (
+	NotHandShakeYetErr = errors.New("should handshake before recive packet")
+	ErrorHandShakeType = errors.New("error handshake type")
+)
