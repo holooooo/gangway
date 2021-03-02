@@ -9,23 +9,16 @@ type Service struct {
 	servicePort int
 }
 
-var svcs []Service
-
 //todo
 func loadServiceConfig() ([]Service, error) {
 	return nil, nil
 }
 
-func Collect() (int, error) {
+func Init() {
 	svcs, err := loadServiceConfig()
 	if err != nil {
-		return 0, err
+		//todo do something
 	}
-	return len(svcs), nil
-}
-
-//todo
-func Register() {
 	for _, svc := range svcs {
 		err := createService(svc)
 		if err != nil {

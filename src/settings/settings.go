@@ -3,6 +3,7 @@ package settings
 import (
 	"flag"
 	"path/filepath"
+	"testing"
 
 	"github.com/rs/zerolog"
 	"k8s.io/client-go/util/homedir"
@@ -20,11 +21,14 @@ var (
 	Name       *string
 
 	EnableDNSPorxy *bool
+	DNSPort        *int
 	EnableRouter   *bool
 	CIDR           *string
 )
 
 func init() {
+	testing.Init()
+
 	getConfig()
 	getFeature()
 	getKubeconfig()
@@ -56,7 +60,8 @@ func getKubeconfig() {
 }
 
 func getFeature() {
-	EnableDNSPorxy = flag.Bool("enabld-dns-porxy", true, "[WARNING!!!]This will change your DNS settings. Only resolve domain names whose names end with '.svc'")
+	EnableDNSPorxy = flag.Bool("enabld-dns-porxy", true, "forward dns question from local dns to cluster dns")
+	DNSPort = flag.Int("dns listener pord", 8553, "(optional) local dns port")
 	EnableRouter = flag.Bool("enabld-cidr-proxy", true, "[WARNING!!!]This will modify your route. Only proxy requests that belong to cluster CIDR scope")
 	CIDR = flag.String("cidr", "10.0.0.0/32", "target addr in cidr will be proxy to cluster")
 }

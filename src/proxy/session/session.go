@@ -34,6 +34,8 @@ const (
 	TypeShutdown         pType = 4
 	TypeAlive            pType = 5
 	TypeAliveReply       pType = 6
+	TypeDns              pType = 7
+	TypeDnsReply         pType = 8
 )
 
 type Session struct {
@@ -160,31 +162,21 @@ func (s *Session) listenPorto() {
 			return
 		}
 		ptype, sta, re := parseHeader(s.dst.in, buf)
-		if e, ok := (re).(UnsportVersionErr); ok {
-			log.Warn().Err(e)
-			continue
-		} else if re != nil {
+		if re != nil {
+			if e, ok := (re).(UnsportVersionErr); ok {
+				log.Warn().Err(e)
+				continue
+			}
 			err = re
 			break
 		}
 
-		switch ptype {
-		case TypeHandShakeReply:
-			s.handShakeCh <- sta
-		case TypeShutdown:
-			log.Info().Msgf("Session %v to %v shutdown by remote", s.dst, s.src)
-			close(s.stop)
-		case TypePacket:
-			err = handlePacket(s, buf)
-		case TypeHandShake:
-			err = handleHandShake(s, buf)
-		case TypeAlive:
-			err = handleAlive(s, buf)
-		case TypeServiceHandShake:
-			err = handleServiceHandShake(s, buf)
-		default:
+		if handler, ok := handlerMap[ptype]; ok {
+			err = handler(s, sta, buf)
+		} else {
 			log.Info().Msgf("Session %v to %v received error type %v", s.dst, s.src, sta)
 		}
+
 		if err != nil {
 			break
 		}

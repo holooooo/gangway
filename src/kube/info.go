@@ -19,7 +19,7 @@ var (
 	informer informers.SharedInformerFactory
 	stop     chan struct{} = make(chan struct{})
 
-	DNS        string
+	DNS        chan string = make(chan string)
 	gangwayPod *corev1.Pod
 )
 
@@ -28,15 +28,15 @@ func getClusterInfo() {
 	log.Info().Msg("start get info from cluster")
 
 	if *settings.EnableDNSPorxy {
-		DNS = getDns()
+		getDns()
 	}
 
 	informer = informers.NewSharedInformerFactory(kc.Clientset, 10*time.Second)
-	listenGangwayPod()
+	go listenGangwayPod()
 }
 
 func listenGangwayPod() {
-	log.Info().Msgf("looking for Gangway Controller pod in %v:%v", *settings.Namespace, *settings.Name)
+	log.Debug().Msgf("looking for Gangway Controller pod in %v:%v", *settings.Namespace, *settings.Name)
 	pods, err := kc.Clientset.CoreV1().Pods(*settings.Namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		log.Warn().Err(err).Msg("init gangway controller pod name failed")
@@ -50,7 +50,7 @@ func listenGangwayPod() {
 	if gangwayPod == nil {
 		log.Warn().Msg("no gangway pod has been find")
 	}
-	log.Info().Msgf("find gangway pod %v", gangwayPod.Name)
+	log.Debug().Msgf("find gangway pod %v", gangwayPod.Name)
 
 	podInformer := informer.Core().V1().Pods().Informer()
 	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -68,19 +68,23 @@ func updatePod(old interface{}, cur interface{}) {
 
 	isTargetPod := curPod.Namespace == *settings.Namespace || strings.HasPrefix(curPod.Name, *settings.Name)
 	if isTargetPod && curPod.Status.Phase == corev1.PodRunning && curPod.Name != gangwayPod.Name {
-		log.Info().Msgf("update remote controller pod to %v", curPod.Name)
+		log.Debug().Msgf("update remote controller pod to %v", curPod.Name)
 		gangwayPod = curPod
 	}
 }
 
-func getDns() string {
-	log.Info().Msg("looking for cluster dns")
+func getDns() {
+	log.Debug().Msg("looking for cluster dns")
 	svc, err := kc.Clientset.CoreV1().Services("kube-system").Get(context.TODO(), "kube-dns", metav1.GetOptions{})
 	if err != nil {
 		panic(err)
 	}
 	if svc != nil {
-		return kc.Config.Host + "/api/v1/namespaces/kube-system/services/kube-dns/proxy"
+		dns := kc.Config.Host + "/api/v1/namespaces/kube-system/services/kube-dns/proxy"
+		log.Debug().Msgf("cluster dns is found: %v", dns)
+		go func() { DNS <- dns }()
+		return
 	}
-	return ""
+
+	log.Warn().Msg("cluster dns not found")
 }

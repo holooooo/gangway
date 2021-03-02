@@ -3,6 +3,7 @@ package pool
 import (
 	"errors"
 	"gangway/src/kube"
+	"gangway/src/settings"
 	"io"
 	"sync"
 	"time"
@@ -33,9 +34,9 @@ const (
 	IdleTimeOut time.Duration = 5 * time.Minute
 )
 
-func InitPool(s, mi int) {
-	size = s
-	maxIdle = mi
+func Init() {
+	size = *settings.PoolSize
+	maxIdle = *settings.PoolMaxIdle
 	idlePipes = make(chan Pipe, size)
 	checkedPipes = make(chan Pipe, maxIdle)
 	beat()
@@ -48,12 +49,16 @@ func GetPipe() (Pipe, error) {
 	case <-time.After(2 * time.Second):
 	}
 	if connNums < size {
-		m.Lock()
-		defer m.Unlock()
-		connNums++
-		return kube.NewPipe()
+		return NewPipe()
 	}
 	return nil, ExceedMaxConn
+}
+
+func NewPipe() (Pipe, error) {
+	m.Lock()
+	defer m.Unlock()
+	connNums++
+	return kube.NewPipe()
 }
 
 func Release(p Pipe) {
