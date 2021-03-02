@@ -3,7 +3,7 @@ package proxy
 import (
 	"fmt"
 	"gangway/src/proxy/pool"
-	"gangway/src/session"
+	"gangway/src/proxy/session"
 	"net"
 
 	"github.com/rs/zerolog/log"
