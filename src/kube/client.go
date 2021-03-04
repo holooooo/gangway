@@ -24,7 +24,7 @@ func Init() {
 		panic(err)
 	}
 
-	getClusterInfo()
+	go getClusterInfo()
 }
 
 func newClient() (*kubeClient, error) {

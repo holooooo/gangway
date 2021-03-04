@@ -4,19 +4,22 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+
+	"github.com/rs/zerolog/log"
 )
 
 func addrToBytes(addr *net.TCPAddr) []byte {
 	b := make([]byte, 6)
-	b = append(b, addr.IP...)
-	binary.BigEndian.PutUint16(b[:4], uint16(addr.Port))
+	copy(b[:4], addr.IP[12:])
+	b[4] = uint8(addr.Port >> 8)
+	b[5] = uint8(addr.Port)
 	return b
 }
 func bytesToAddr(b []byte) *net.TCPAddr {
 	binary.BigEndian.Uint16(b)
 	addr := &net.TCPAddr{
 		IP:   b[:4],
-		Port: int(binary.BigEndian.Uint16(b[:4])),
+		Port: int(b[4])<<8 | int(b[5]),
 	}
 	return addr
 }
@@ -31,6 +34,7 @@ func pluckTypeAndState(data byte) (pType, state) {
 
 func write(data []byte, writer io.Writer) error {
 	l, err := writer.Write(data)
+	log.Debug().Msgf("write content: %v", data)
 	if err != nil {
 		return err
 	} else if l != len(data) {

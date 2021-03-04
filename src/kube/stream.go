@@ -34,7 +34,7 @@ func NewPipe() (*Pipe, error) {
 			Stdin:     true,
 			Stdout:    true,
 			Stderr:    true,
-			TTY:       true,
+			TTY:       false,
 		}, scheme.ParameterCodec)
 
 	exec, err := remotecommand.NewSPDYExecutor(kc.Config, "POST", req.URL())
@@ -44,7 +44,12 @@ func NewPipe() (*Pipe, error) {
 
 	inReader, inWriter := io.Pipe()
 	outReader, outWriter := io.Pipe()
-	pipe := &Pipe{out: outReader, in: inWriter, stop: make(chan struct{})}
+	pipe := &Pipe{
+		pod:  *gangwayPod,
+		out:  outReader,
+		in:   inWriter,
+		stop: make(chan struct{}),
+	}
 	go func() {
 		defer inReader.Close()
 		defer outWriter.Close()
@@ -55,16 +60,18 @@ func NewPipe() (*Pipe, error) {
 			Tty:    true,
 		})
 		if err != nil {
-			log.Warn().Err(err).Msg("pipe creat failed")
+			log.Warn().Err(err).Msg("pipe error")
 			pipe.Close()
 		}
 		<-pipe.stop
 	}()
 
+	log.Debug().Msg("new kube stream pipe is created")
 	return pipe, nil
 }
 
 type Pipe struct {
+	pod  corev1.Pod
 	out  *io.PipeReader
 	in   *io.PipeWriter
 	stop chan struct{}
@@ -77,11 +84,15 @@ func (p Pipe) Write(b []byte) (n int, err error) {
 	return p.in.Write(b)
 }
 func (p Pipe) Close() error {
-	p.stop <- struct{}{}
+	close(p.stop)
+	log.Debug().Msg("kube stream pipe is closing")
 	return p.in.Close()
 }
 
 // TODO
 func (p Pipe) Alive() error {
+	if gangwayPod != &p.pod {
+		return errors.New("pod is not exist")
+	}
 	return nil
 }

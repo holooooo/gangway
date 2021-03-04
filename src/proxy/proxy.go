@@ -37,7 +37,7 @@ func Serve(t, ip string, port int) {
 
 	for {
 		conn, err := server.Accept()
-		log.Debug().Msgf("recived a new connection from %v to %v", conn.LocalAddr(), conn.RemoteAddr())
+		log.Debug().Msgf("recived a new connection from %v to %v", conn.RemoteAddr(), conn.LocalAddr())
 		if err != nil {
 			log.Warn().Err(err).Msgf("Get Conn from %v:%v failed", ip, port)
 		}

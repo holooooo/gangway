@@ -43,10 +43,17 @@ func Init() {
 }
 
 func GetPipe() (Pipe, error) {
-	select {
-	case conn := <-idlePipes:
-		return conn, nil
-	case <-time.After(2 * time.Second):
+	for i := 0; i < 3; i++ {
+	getIdle:
+		select {
+		case p := <-idlePipes:
+			if p.Alive() != nil {
+				closePipe(p)
+			}
+			return p, nil
+		default:
+			break getIdle
+		}
 	}
 	if connNums < size {
 		return NewPipe()
@@ -62,15 +69,22 @@ func NewPipe() (Pipe, error) {
 }
 
 func Release(p Pipe) {
-	select {
-	case idlePipes <- p:
-		return
-	default:
-		m.Lock()
-		defer m.Unlock()
-		p.Close()
-		connNums--
+	if p.Alive() != nil {
+		select {
+		case idlePipes <- p:
+			return
+		default:
+		}
 	}
+	closePipe(p)
+
+}
+
+func closePipe(p Pipe) {
+	m.Lock()
+	defer m.Unlock()
+	connNums--
+	p.Close()
 }
 
 func beat() {
@@ -89,10 +103,7 @@ CheckIdle:
 		select {
 		case pipe := <-idlePipes:
 			if idleNums == maxIdle || pipe.Alive() != nil {
-				m.Lock()
-				connNums--
-				pipe.Close()
-				m.Unlock()
+				closePipe(pipe)
 				break
 			}
 			checkedPipes <- pipe

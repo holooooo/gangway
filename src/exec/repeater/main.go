@@ -18,7 +18,7 @@ func main() {
 
 	dataConn, err := net.Dial("tcp4", "localhost:9527")
 	if err != nil {
-		log.Warn().Err(err).Msg("Connect failed, shutdown ...")
+		log.Warn().Err(err).Msg("Connect failed, repeater shutdown ...")
 	}
 	defer dataConn.Close()
 
@@ -29,5 +29,7 @@ func main() {
 	}
 	go forward(dataConn, os.Stdin)
 	go forward(os.Stdout, dataConn)
+
+	log.Debug().Msg("repeater started")
 	<-stop
 }

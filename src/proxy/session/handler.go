@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
-
-	"github.com/rs/zerolog/log"
 )
 
 type handler func(s *Session, sta state, buf []byte) error
@@ -25,7 +23,7 @@ func init() {
 }
 
 func handleShutdown(s *Session, sta state, buf []byte) error {
-	log.Info().Msgf("Session %v to %v shutdown by remote", s.dst, s.src)
+	s.log.Info().Msgf("Session %v to %v shutdown by remote", s.dst, s.src)
 	close(s.stop)
 	return nil
 }
@@ -56,14 +54,11 @@ func handleHandShake(s *Session, sta state, buf []byte) error {
 	}
 
 	targetAddr := bytesToAddr(buf[:6])
-	log.Info().Msgf("recived handshake: target to %v", targetAddr)
+	s.log.Info().Msgf("recived handshake: target to %v", targetAddr)
 	conn, err := net.Dial("tcp4", targetAddr.String())
 	if err != nil {
 		// TODO correct return different error
-		log.Warn().Msgf("handshake failed: target to %v", targetAddr)
-		sta := StateConnectionRefused
-		h := genHeader(s, TypeHandShakeReply, sta)
-		_ = write(h, s.dst.out)
+		s.log.Warn().Msgf("handshake failed: target to %v", targetAddr)
 		return err
 	}
 	defer conn.Close()

@@ -32,7 +32,7 @@ func getClusterInfo() {
 	}
 
 	informer = informers.NewSharedInformerFactory(kc.Clientset, 10*time.Second)
-	go listenGangwayPod()
+	listenGangwayPod()
 }
 
 func listenGangwayPod() {
@@ -67,7 +67,9 @@ func updatePod(old interface{}, cur interface{}) {
 	}
 
 	isTargetPod := curPod.Namespace == *settings.Namespace || strings.HasPrefix(curPod.Name, *settings.Name)
-	if isTargetPod && curPod.Status.Phase == corev1.PodRunning && curPod.Name != gangwayPod.Name {
+	isNewPod := curPod.Status.Phase == corev1.PodRunning && curPod.Name != gangwayPod.Name
+	isNotDeleting := curPod.DeletionTimestamp == nil
+	if isTargetPod && isNewPod && isNotDeleting {
 		log.Debug().Msgf("update remote controller pod to %v", curPod.Name)
 		gangwayPod = curPod
 	}

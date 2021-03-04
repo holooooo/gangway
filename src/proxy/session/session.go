@@ -5,8 +5,11 @@ import (
 	"gangway/src/proxy/pool"
 	"io"
 	"net"
+	"os"
+	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -42,9 +45,13 @@ type Session struct {
 	src *stream
 	dst *stream
 
-	stop        chan struct{}
-	handShakeCh chan state
-	shutdownCh  chan state
+	hasHandShaked bool
+	stop          chan struct{}
+	handShakeCh   chan state
+	shutdownCh    chan state
+	shutdownMx    sync.Mutex
+
+	log zerolog.Logger
 }
 
 type stream struct {
@@ -58,11 +65,11 @@ func (s stream) String() string {
 }
 
 func NewClientSession(c net.Conn, p pool.Pipe) (*Session, error) {
-	src, err := net.ResolveTCPAddr("tcp4", c.LocalAddr().String())
+	src, err := net.ResolveTCPAddr("tcp4", c.RemoteAddr().String())
 	if err != nil {
 		return nil, err
 	}
-	dst, err := net.ResolveTCPAddr("tcp4", c.RemoteAddr().String())
+	dst, err := net.ResolveTCPAddr("tcp4", c.LocalAddr().String())
 	if err != nil {
 		return nil, err
 	}
@@ -81,12 +88,15 @@ func NewClientSession(c net.Conn, p pool.Pipe) (*Session, error) {
 		stop:        make(chan struct{}),
 		handShakeCh: make(chan state),
 		shutdownCh:  make(chan state),
+
+		log: zerolog.New(os.Stdout).With().
+			Str("src", src.String()).
+			Str("dst", dst.String()).Logger(),
 	}
 
 	go func() {
-		if err := s.HandShake(TypeHandShake); err != nil {
-			log.Err(err).Msg("handshake failed")
-			s.shutdown()
+		if err := s.handShake(TypeHandShake); err != nil {
+			s.shutdown(err)
 		}
 	}()
 	return s, nil
@@ -94,28 +104,30 @@ func NewClientSession(c net.Conn, p pool.Pipe) (*Session, error) {
 
 //TODO service session used to tell controller how to handle service data
 func NewServiceSession(svc service.Service) (*Session, error) {
-	s := &Session{}
+	s := &Session{
+		log: zerolog.New(os.Stdout),
+	}
 	go func() {
-		if err := s.HandShake(TypeServiceHandShake); err != nil {
-			log.Err(err).Msgf("service %v handshake failed", svc)
-			s.shutdown()
+		if err := s.handShake(TypeServiceHandShake); err != nil {
+			s.shutdown(err)
 		}
 	}()
 	return s, nil
 }
 
-func (s *Session) HandShake(t pType) error {
+func (s *Session) handShake(t pType) error {
 	h := genHeader(s, t, StateSuccess)
 
 	switch t {
 	case TypeServiceHandShake:
 		//TODO
 	case TypeHandShake:
-		h = append(h[2:], addrToBytes(s.dst.addr)...)
+		h = append(h, addrToBytes(s.dst.addr)...)
 	default:
 		return ErrorHandShakeType
 	}
 
+	startTime := time.Now()
 	err := write(h, s.dst.out)
 	if err != nil {
 		return err
@@ -126,6 +138,8 @@ func (s *Session) HandShake(t pType) error {
 		return NewHandShakeTimeOutErr(HandShakeTimeOut)
 	case ss := <-s.handShakeCh:
 		if ss == StateSuccess {
+			s.hasHandShaked = true
+			s.log.Debug().Msgf("handshake success, taken %v", time.Since(startTime))
 			return nil
 		}
 		return s.handleError(ss)
@@ -147,16 +161,21 @@ func NewServerSession(c net.Conn) (*Session, error) {
 			in:   c,
 			out:  c,
 		},
+		log: zerolog.New(os.Stdout),
 	}
 
 	return s, nil
 }
 
 // it is only called in tcp conn broken
-func (s *Session) shutdown() {
+func (s *Session) shutdown(e error) {
+	s.shutdownMx.Lock()
+	defer s.shutdownMx.Unlock()
 	if s.isStop() {
 		return
 	}
+
+	log.Debug().Err(e).Msg("session shutdown...")
 
 	h := genHeader(s, TypeShutdown, StateSuccess)
 	err := write(h, s.dst.out)
@@ -168,9 +187,7 @@ func (s *Session) shutdown() {
 	case <-time.After(HandShakeTimeOut):
 	case <-s.shutdownCh:
 	}
-	if !s.isStop() {
-		close(s.stop)
-	}
+	close(s.stop)
 }
 
 func (s *Session) listenPorto() {
@@ -182,8 +199,8 @@ func (s *Session) listenPorto() {
 		}
 		ptype, sta, re := parseHeader(s.dst.in, buf)
 		if re != nil {
-			if e, ok := (re).(UnsportVersionErr); ok {
-				log.Warn().Err(e)
+			if e, ok := re.(UnsportVersionErr); ok {
+				s.log.Warn().Err(e)
 				continue
 			}
 			err = re
@@ -193,7 +210,7 @@ func (s *Session) listenPorto() {
 		if handler, ok := handlerMap[ptype]; ok {
 			err = handler(s, sta, buf)
 		} else {
-			log.Info().Msgf("Session %v to %v received error type %v", s.dst, s.src, sta)
+			s.log.Debug().Msgf("received error type %v", sta)
 		}
 
 		if err != nil {
@@ -202,11 +219,8 @@ func (s *Session) listenPorto() {
 
 	}
 	if err != nil {
-		if err != io.EOF {
-			log.Debug().Err(err).Msgf("Session %v to %v", s.src, s.dst)
-			s.throwError(err)
-		}
-		s.shutdown()
+		s.throwError(err)
+		s.shutdown(err)
 	}
 }
 
@@ -216,6 +230,9 @@ func (s *Session) listenTCP() {
 	for {
 		if s.isStop() {
 			break
+		}
+		if !s.hasHandShaked {
+			continue
 		}
 		rl, re := s.src.in.Read(buf[:MaxPacketLen])
 		if rl > 0 {
@@ -233,11 +250,8 @@ func (s *Session) listenTCP() {
 	}
 
 	if err != nil {
-		if err != io.EOF {
-			log.Warn().Err(err).Msgf("Session %v to %v", s.src, s.dst)
-			s.throwError(err)
-		}
-		s.shutdown()
+		s.throwError(err)
+		s.shutdown(err)
 	}
 }
 
