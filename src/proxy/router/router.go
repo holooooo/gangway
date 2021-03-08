@@ -19,8 +19,16 @@ func ListenTap() error {
 			log.Warn().Err(err).Msg("error on read tap device")
 		}
 		frame = frame[:n]
-		log.Info().Msgf("Dst: %s", frame.Destination())
-		log.Info().Msgf("Src: %s", frame.Source())
+		switch frame.Ethertype() {
+		case ethernet.ARP:
+			handleARP(ifce, frame.Payload())
+		case ethernet.IPv4:
+			log.Info().Msg("!!!!!!!!!!!")
+			log.Info().Msgf("Payload: % x", string(frame.Payload()))
+		default:
+			log.Debug().Msg("unsupported ethernet type")
+		}
+
 		log.Info().Msgf("Ethertype: % x", frame.Ethertype())
 		log.Info().Msgf("Payload: % x", string(frame.Payload()))
 	}
